@@ -1,4 +1,5 @@
-#define PIN 1 // Gemma
+//#define PIN 1 // Gemma--
+#define PIN 10 // Feather
 #define N_LEDS 24
 #define N_COMET_STATES 7
 #define N_VELOCITIES 8
@@ -10,31 +11,32 @@
 
 #include <Adafruit_NeoPixel.h>
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, PIN, NEO_RGBW + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, PIN, NEO_GRBW + NEO_KHZ800);
 
 struct PatternState {
-  char nComets;
-  char pingPongInterval;
-  char velocity;
-  char cometOffset;
+  long nComets;
+  long pingPongInterval;
+  long velocity;
+  long cometOffset;
 } rPrevPat, rCurPat, gPrevPat, gCurPat, bPrevPat, bCurPat;
-const char cometStates[] = { 1, 2, 3, 4, 6, 8, 12 };
-const char velocities[] = { 1, 5, 7, 11, 13, 17, 19, 23 };
-char frame = 0;
+const long cometStates[] = { 1, 2, 3, 4, 6, 8, 12 };
+const long velocities[] = { 1, 5, 7, 11, 13, 17, 19, 23 };
+long frame = 0;
 
-char rgbCur[3][N_LEDS];
-char rgbPrev[3][N_LEDS];
+long rgbCur[3][N_LEDS];
+long rgbPrev[3][N_LEDS];
 PatternState rgbCurPat[3];
 PatternState rgbPrevPat[3];
 
-char rCur[N_LEDS];
-char gCur[N_LEDS];
-char bCur[N_LEDS];
-char rPrev[N_LEDS];
-char gPrev[N_LEDS];
-char bPrev[N_LEDS];
+long rCur[N_LEDS];
+long gCur[N_LEDS];
+long bCur[N_LEDS];
+long rPrev[N_LEDS];
+long gPrev[N_LEDS];
+long bPrev[N_LEDS];
 
 void setup() {
+  Serial.begin(9600);
   randomSeed(analogRead(0));
   rPrevPat = getPatternState();
   gPrevPat = getPatternState();
@@ -43,35 +45,38 @@ void setup() {
   gCurPat = getPatternState();
   bCurPat = getPatternState();
 
-  for (char i = 0; i < 3; i++) {
+  for (long i = 0; i < 3; i++) {
     rgbCurPat[i] = getPatternState();
     rgbPrevPat[i] = getPatternState();
   }
 
   strip.begin();
+  for (long i = 0; i < N_LEDS; i++) {
+    strip.setPixelColor(i, 64, 64, 64, 64);
+  }
   strip.show();
 }
 
-char calcCometLen(char nComets) {
+long calcCometLen(long nComets) {
   return N_LEDS / nComets;
 }
 
-char getRandomVelocity(char nComets) {
+long getRandomVelocity(long nComets) {
   return (flipCoin() ? 1 : -1) * velocities[random(N_VELOCITIES)];
 }
 
 PatternState getPatternState() {
-  char nComets = cometStates[random(N_COMET_STATES)];
-  char pingPongInterval = flipCoin() ? N_FRAMES : random(N_LEDS, N_FRAMES / 2);
-  char velocity = getRandomVelocity(nComets);
-  char cometOffset = random(N_LEDS);
+  long nComets = 1;//cometStates[random(N_COMET_STATES)];
+  long pingPongInterval = N_FRAMES;//flipCoin() ? N_FRAMES : random(N_LEDS, N_FRAMES / 2);
+  long velocity = 1;//getRandomVelocity(nComets);
+  long cometOffset = 0;//random(N_LEDS);
   return { nComets, pingPongInterval, velocity, cometOffset };
 }
 
 void setupAnimationState() {
-  rPrevPat = rCurPat;
-  gPrevPat = gCurPat;
-  bPrevPat = bCurPat;
+//  rPrevPat = rCurPat;
+//  gPrevPat = gCurPat;
+//  bPrevPat = bCurPat;
   if (random(3) == 0) {
     rCurPat = getPatternState();
   }
@@ -81,35 +86,35 @@ void setupAnimationState() {
   if (random(3) == 0) {
     bCurPat = getPatternState();
   }
-  for (char i = 0; i < N_LEDS; i++) {
-    rPrev[i] = rCur[i];
-    gPrev[i] = gCur[i];
-    bPrev[i] = bCur[i];
-  }
+//  for (long i = 0; i < N_LEDS; i++) {
+//    rPrev[i] = rCur[i];
+//    gPrev[i] = gCur[i];
+//    bPrev[i] = bCur[i];
+//  }
 
-  for (char i = 0; i < 3; i++) {
-    rgbPrevPat[i] = rgbCurPat[i];
-    if (random(3) == 0) {
-      rgbCurPat[i] = getPatternState();
-    }
-    for (char j = 0; j < N_LEDS; j++) {
-      rgbPrev[i][j] = rgbCur[i][j];
-    }
-  }
+//  for (long i = 0; i < 3; i++) {
+//    rgbPrevPat[i] = rgbCurPat[i];
+//    if (random(3) == 0) {
+//      rgbCurPat[i] = getPatternState();
+//    }
+//    for (long j = 0; j < N_LEDS; j++) {
+//      rgbPrev[i][j] = rgbCur[i][j];
+//    }
+//  }
 }
 
-char computeCometColor(char pixel, PatternState pattern) {
-  char nComets = pattern.nComets;
-  char cometOffset = pattern.cometOffset;
-  char velocity = pattern.velocity;
+long computeCometColor(long pixel, PatternState pattern) {
+  long nComets = pattern.nComets;
+  long cometOffset = pattern.cometOffset;
+  long velocity = pattern.velocity;
 
-  char cometLen = calcCometLen(nComets);
-  char offset = (pixel + cometOffset + (frame * velocity)) % N_LEDS;
+  long cometLen = calcCometLen(nComets);
+  long offset = (pixel + cometOffset + (frame * velocity)) % N_LEDS;
   while (offset < 0) {
     offset += N_LEDS;
   }
-  char pos = ((pixel + N_LEDS) - offset) % cometLen;
-  char color = ((256 / cometLen) * (cometLen - pos)) - 1;
+  long pos = ((pixel + N_LEDS) - offset) % cometLen;
+  long color = ((256 / cometLen) * (cometLen - pos)) - 1;
   if (pos == 0) {
     // Head
   } else {
@@ -117,11 +122,15 @@ char computeCometColor(char pixel, PatternState pattern) {
     // shimmer effect
     color += (flipCoin() ? 1 : -1) * random(128 / cometLen);
   }
+    Serial.print("pixel: ");
+    Serial.print(pixel);
+    Serial.print(", color: ");
+    Serial.println(color);
   return color;
 }
 
 void computeRgb() {
-  for (char i = 0; i < N_LEDS; i++) {
+  for (long i = 0; i < N_LEDS; i++) {
     rCur[i] = computeCometColor(i, rCurPat);
     gCur[i] = computeCometColor(i, gCurPat);
     bCur[i] = computeCometColor(i, bCurPat);
@@ -130,8 +139,8 @@ void computeRgb() {
     bPrev[i] = computeCometColor(i, bPrevPat);
   }
 
-  for (char i = 0; i < 3; i++) {
-    for (char j = 0; j < N_LEDS; j++) {
+  for (long i = 0; i < 3; i++) {
+    for (long j = 0; j < N_LEDS; j++) {
       rgbCur[i][j] = computeCometColor(j, rgbCurPat[i]);
       rgbPrev[i][j] = computeCometColor(j, rgbPrevPat[i]);
     }
@@ -160,7 +169,7 @@ void updatePingPong() {
 
   PatternState rgbCurPatState;
   PatternState rgbPrevPatState;
-  for (char i = 0; i < 3; i++) {
+  for (long i = 0; i < 3; i++) {
     rgbCurPatState = rgbCurPat[i];
     if (frame % rgbCurPatState.pingPongInterval == 0) {
       rgbCurPat[i] = { rgbCurPatState.nComets, rgbCurPatState.pingPongInterval, -1 * rgbCurPatState.velocity, rgbCurPatState.cometOffset };
@@ -175,22 +184,28 @@ void updatePingPong() {
 void render() {
   computeRgb();
 
-  int red;
-  int green;
-  int blue;
-  for (char i = 0; i < N_LEDS; i++) {
+  long red;
+  long green;
+  long blue;
+  for (long i = 0; i < N_LEDS; i++) {
     red = rCur[i];
     green = gCur[i];
     blue = bCur[i];
-    if (frame < N_XFADE_FRAMES) {
-      red = (red + rPrev[i]) / 2;
-      green = (green + gPrev[i]) / 2;
-      blue = (blue + bPrev[i]) / 2;
-    }
-    strip.setPixelColor(i, red, green, blue, 0 /* white */);
+//    if (frame < N_XFADE_FRAMES) {
+//      red = (red + rPrev[i]) / 2;
+//      green = (green + gPrev[i]) / 2;
+//      blue = (blue + bPrev[i]) / 2;
+//    }
+    Serial.println("setting pixel color");
+    Serial.print("i: ");
+    Serial.print(i);
+    Serial.print(", red: ");
+    Serial.println(red);
+//    strip.setPixelColor(i, red, green, blue, 0 /* white */);
+    strip.setPixelColor(i, red, 0, 0, 0 /* white */);
   }
 
-  for (char j = 0; j < N_LEDS; j++) {
+  for (long j = 0; j < N_LEDS; j++) {
     red = rgbCur[R][j];
     green = rgbCur[G][j];
     blue = rgbCur[B][j];
@@ -199,13 +214,21 @@ void render() {
       green = (green + rgbPrev[G][j]) / 2;
       blue = (blue + rgbPrev[B][j]) / 2;
     }
-    //    strip.setPixelColor(i, red, green, blue, 0 /* white */);
+    green = 0;
+    blue = 0;
+//    strip.setPixelColor(j, red, green, blue, 0 /* white */);
   }
+
+  strip.show();
 }
 
 void loop() {
   render();
+  delay(100);
   frame++;
+  if (frame >= 256) {
+    frame = 0;
+  }
   updatePingPong();
   if (frame == 0) {
     setupAnimationState();
