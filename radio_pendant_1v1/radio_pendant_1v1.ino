@@ -7,20 +7,11 @@
 #define MIN_FRAME_DURATION 50
 #define MAX_OTHER_DAVIDS 1
 
-// Radio
-#define RFM95_CS 8
-#define RFM95_RST 4
-#define RFM95_INT 3
-#define RFM95_FREQ 433.0
-#define TX_POWER 23 // TX_POWER can range from 5 to 23
-#define PING_INTERVAL 20
-#define PING_PACKET_LENGTH 29 // header (3), me, frame, rgb patterns (3 * 7), footer (3)
-
 // LEDs
 #define LED_DATA_PIN 10 // Feather
 #define N_LEDS 24
-#define N_FRAMES 144
-#define N_XFADE_FRAMES 36
+#define N_FRAMES 256
+#define N_XFADE_FRAMES 64
 #define COMET_DOMAIN_SIZE 6
 #define N_VELOCITIES 4
 #define MAX_COLOR 255
@@ -28,7 +19,17 @@
 #define G 1
 #define B 2
 
-// Strctures
+// Radio
+#define RFM95_CS 8
+#define RFM95_RST 4
+#define RFM95_INT 3
+#define RFM95_FREQ 433.0
+#define TX_POWER 10 // TX_POWER can range from 5 to 23
+#define PING_INTERVAL 64 // == N_FRAMES / 4
+#define PING_PACKET_LENGTH 29 // header (3), me, frame, rgb patterns (3 * 7), footer (3)
+
+
+// Structures
 struct Pattern {
   long nComets;
   long cometOffset;
@@ -43,6 +44,9 @@ struct David {
   char david;
   char frame;
   struct Pattern patterns[3];
+  // Parameterize the white pattern that the other david does
+  long index;
+  long white;
 };
 
 // General variables
@@ -134,8 +138,7 @@ void initStrip() {
   reset();
 }
 
-// Radio methods
-void ping() {
+void buildPingBuf() {
   long i = 0;
   pingBuf[i++] = HEADER[0];
   pingBuf[i++] = HEADER[1];
@@ -156,7 +159,11 @@ void ping() {
   pingBuf[PING_PACKET_LENGTH - 3] = FOOTER[0];
   pingBuf[PING_PACKET_LENGTH - 2] = FOOTER[1];
   pingBuf[PING_PACKET_LENGTH - 1] = FOOTER[2];
+}
 
+// Radio methods
+void ping() {
+  buildPingBuf();
   rf95.send((uint8_t *) pingBuf, pingBufLen);
   rf95.waitPacketSent();
 }
@@ -180,9 +187,50 @@ char receivePacket() {
   if (isValidPacket()) {
     char otherDavid = receiveBuf[3];
     char otherFrame = receiveBuf[4];
-    // TODO: get the params of the other pattern
+
     // Signal strength, [-100, -15]
-    int8_t newSigStr = rf95.lastRssi();
+    int8_t sigStr = rf95.lastRssi();
+    Serial.print("signal strength: ");
+    Serial.println(sigStr);
+    // TODO: do something with signal strength
+
+    if (hasOthers()) {
+      // TODO: support multiple davids
+      // check if other david is this one
+      if (them[0].david == otherDavid) {
+        // update other
+        // no need to get the patterns since I should alraedy have them
+        // TODO: something with otherFrame
+        // TODO: change the parameters of the pattern?
+        them[0].white = MAX_COLOR;
+      } else {
+        // no room for david
+        Serial.print("no room for other david: ");
+        Serial.println(otherDavid);
+      }
+    } else {
+      // new david this round!
+      nOthers = 1; // TODO: not supporting more than 1 david right now
+
+      them[0].david = otherDavid;
+      them[0].frame = otherFrame;
+      long i = 5;
+      while (i < PING_PACKET_LENGTH - 3) {
+        for (int c = 0; c < 3; c++) {
+          them[0].patterns[c].nComets = (long) receiveBuf[i++];
+          them[0].patterns[c].cometOffset = (long) receiveBuf[i++];
+          them[0].patterns[c].velocityIndex = (long) receiveBuf[i++];
+          them[0].patterns[c]. pingPongDur = (long) receiveBuf[i++];
+          them[0].patterns[c].mirror = receiveBuf[i++] == 1 ? true : false;
+          them[0].patterns[c].slave = receiveBuf[i++] == 1 ? true : false;
+          them[0].patterns[c].reduction = (long) receiveBuf[i++];
+        }
+      }
+
+      // initialie other david white pattern params
+      them[0].index = random(N_LEDS);
+      them[0].white = MAX_COLOR;
+    }
 
     return otherDavid;
   } else {
@@ -229,8 +277,19 @@ long getCometLength(long nComets) {
   return (N_LEDS / nComets);
 }
 
+void updateOtherDavidWhiteParams() {
+  if (hasOthers()) {
+    them[0].white -= 4;
+    if (them[0].white < 0) {
+      them[0].white = 0;
+    }
+
+    them[0].index = (them[0].index + (1 + N_LEDS / 2)) % N_LEDS;
+  }
+}
+
 void setPixelColors() {
-  long red, green, blue;
+  long red, green, blue, white;
   for (long i = 0; i < N_LEDS; i++) {
     red = rgb[R][i];
     green = rgb[G][i];
@@ -240,8 +299,21 @@ void setPixelColors() {
       green = getXfadeValue(green, rgb0[G][i]);
       blue = getXfadeValue(blue, rgb0[B][i]);
     }
-    strip.setPixelColor(i, red, green, blue, 0);
+
+    if (hasOthers()) {
+      if (i == them[0].index) {
+        white = them[0].white;
+      } else {
+        white = 0;
+      }
+    } else {
+      white = 0;
+    }
+
+    strip.setPixelColor(i, red, green, blue, white);
   }
+
+  updateOtherDavidWhiteParams();
 }
 
 long getXfadeValue(long c, long c0) {
@@ -313,7 +385,7 @@ void render() {
   setPixelColors();
 
   strip.show();
-  // delay(MIN_FRAME_DURATION);
+  // delay(MIN_FRAME_DURATION); // doing this at the end of loop() now
 }
 
 long getVelocityIndex(boolean slave, long slaveIndex, long velocityIndex) {
@@ -336,6 +408,14 @@ long getRandomNComets() {
   return nComets;
 }
 
+long getGeneticLong(long randomVal, long myVal, long theirVal) {
+  return random(4) == 0 ? randomVal : flipCoin() ? myVal : theirVal;
+}
+
+long getGeneticBool(bool randomVal, bool myVal, bool theirVal) {
+  return random(4) == 0 ? randomVal : flipCoin() ? myVal : theirVal;
+}
+
 void reset() {
   frame = 0;
 
@@ -346,28 +426,24 @@ void reset() {
     slaveB = !slaveG;
   }
 
-  boolean changeAll = flipCoin();
   for (long c = 0; c < 3; c++) {
     backupPattern(c);
 
-    // TODO: cross breed with the other pattern if one exists
-
-    if (changeAll || flipCoin()) {
-      long nComets = getRandomNComets();
-      if (hasOthers()) {
-        Pattern otherPattern = them[0].patterns[c];
-        patterns[c].nComets = random(4) == 0 ? getRandomNComets() : flipCoin() ? patterns[c].nComets : otherPattern.nComets;
-        patterns[c].cometOffset = random(4) == 0 ? random(N_LEDS) : flipCoin() ? patterns[c].cometOffset : otherPattern.cometOffset;
-        patterns[c].velocityIndex = random(4) == 0 ? random(N_VELOCITIES) : flipCoin() ? patterns[c].velocityIndex : otherPattern.velocityIndex;
-        patterns[c].pingPongDur = random(4) == 0 ? getPingPongDur() : flipCoin() ? patterns[c].pingPongDur : otherPattern.pingPongDur;
-        patterns[c].mirror = random(4) == 0 ? flipCoin() : flipCoin() ? patterns[c].mirror : otherPattern.mirror;
-      } else {
-        patterns[c].nComets = nComets;
-        patterns[c].cometOffset = random(N_LEDS);
-        patterns[c].velocityIndex = random(N_VELOCITIES);
-        patterns[c].pingPongDur = getPingPongDur();
-        patterns[c].mirror = flipCoin();
-      }
+    // maximize the amount of variation by always changing all rgb pattern params
+    if (hasOthers()) {
+      // TODO: support multiple davids? crossbreeding algo would get trickier for maybe not much gain
+      Pattern otherPattern = them[0].patterns[c];
+      patterns[c].nComets = getGeneticLong(getRandomNComets(), patterns[c].nComets, otherPattern.nComets);
+      patterns[c].cometOffset = getGeneticLong(random(N_LEDS), patterns[c].cometOffset, otherPattern.cometOffset);
+      patterns[c].velocityIndex = getGeneticLong(random(N_VELOCITIES), patterns[c].velocityIndex, otherPattern.velocityIndex);
+      patterns[c].pingPongDur = getGeneticLong(getPingPongDur(), patterns[c].pingPongDur, otherPattern.pingPongDur);
+      patterns[c].mirror = getGeneticBool(flipCoin(), patterns[c].mirror, otherPattern.mirror);
+    } else {
+      patterns[c].nComets = getRandomNComets();
+      patterns[c].cometOffset = random(N_LEDS);
+      patterns[c].velocityIndex = random(N_VELOCITIES);
+      patterns[c].pingPongDur = getPingPongDur();
+      patterns[c].mirror = flipCoin();
     }
 
     if (c == R) {
@@ -421,11 +497,11 @@ void loop() {
   if (frameDuration < MIN_FRAME_DURATION) {
     long millisToDelay = MIN_FRAME_DURATION - frameDuration;
     if (millisToDelay < 0) {
-      millisToDelay = 0
+      millisToDelay = 0;
     }
     if (millisToDelay > MIN_FRAME_DURATION) {
       millisToDelay = MIN_FRAME_DURATION;
     }
-    delay(millisToDelays);
+    delay(millisToDelay);
   }
 }
