@@ -105,8 +105,7 @@ void render() {
     }
   }
 
-  setPixelColors(
-  );
+  setPixelColors();
 
   strip.show();
   delay(50);
