@@ -420,6 +420,12 @@ void loop() {
   unsigned long frameDuration = millis() - frameStartTime;
   if (frameDuration < MIN_FRAME_DURATION) {
     long millisToDelay = MIN_FRAME_DURATION - frameDuration;
-    delay();
+    if (millisToDelay < 0) {
+      millisToDelay = 0
+    }
+    if (millisToDelay > MIN_FRAME_DURATION) {
+      millisToDelay = MIN_FRAME_DURATION;
+    }
+    delay(millisToDelays);
   }
 }
