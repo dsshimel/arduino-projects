@@ -1,6 +1,10 @@
 #include <SPI.h>
 #include <RH_RF95.h>
 #include <Adafruit_NeoPixel.h>
+#include <Adafruit_WS2801.h>
+
+void render() __attribute__((__optimize__("O2")));
+void setPixelColors() __attribute__((__optimize__("O2")));
 
 // General
 #define PIN_ONBOARD_LED 13
@@ -66,7 +70,8 @@ uint8_t receiveBuf[RH_RF95_MAX_MESSAGE_LEN];
 uint8_t receiveBufLen = sizeof(receiveBuf);
 
 // LED variables
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, LED_DATA_PIN, NEO_GRBW + NEO_KHZ800);
+//Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, LED_DATA_PIN, NEO_GRBW + NEO_KHZ800);
+Adafruit_WS2801 strip = Adafruit_WS2801(N_LEDS, 2, 3);
 struct Pattern patterns[3];
 struct Pattern patterns0[3];
 long rgb[3][N_LEDS];
